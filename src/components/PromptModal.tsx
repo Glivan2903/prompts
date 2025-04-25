@@ -1,4 +1,3 @@
-
 import React, { useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -10,9 +9,10 @@ interface PromptModalProps {
   isOpen: boolean;
   onClose: () => void;
   promptContent: string;
+  footer?: React.ReactNode;
 }
 
-const PromptModal: React.FC<PromptModalProps> = ({ isOpen, onClose, promptContent }) => {
+const PromptModal: React.FC<PromptModalProps> = ({ isOpen, onClose, promptContent, footer }) => {
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleCopy = () => {
@@ -35,7 +35,7 @@ const PromptModal: React.FC<PromptModalProps> = ({ isOpen, onClose, promptConten
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl h-[80vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Prompt Gerado</DialogTitle>
+          <DialogTitle>Prévia do Prompt</DialogTitle>
         </DialogHeader>
 
         <ScrollArea className="flex-1 border rounded-md p-4 my-4">
@@ -52,13 +52,11 @@ const PromptModal: React.FC<PromptModalProps> = ({ isOpen, onClose, promptConten
           aria-hidden="true"
         />
 
-        <DialogFooter>
-          <Button onClick={handleCopy} className="gap-2">
+        <DialogFooter className="flex justify-between items-center">
+          <Button onClick={handleCopy} variant="secondary" className="gap-2">
             <Copy size={16} /> Copiar Prompt
           </Button>
-          <Button variant="outline" onClick={onClose}>
-            Fechar
-          </Button>
+          {footer}
         </DialogFooter>
       </DialogContent>
     </Dialog>

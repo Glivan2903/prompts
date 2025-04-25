@@ -1,35 +1,104 @@
-
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { StrictMode } from "react";
-import Index from "./pages/Index";
-import GuidePage from "./pages/GuidePage";
-import BuilderPage from "./pages/BuilderPage";
-import NotFound from "./pages/NotFound";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { BaseLayout } from "@/components/BaseLayout";
+import BuilderPage from "@/pages/BuilderPage";
+import PromptsPage from "@/pages/PromptsPage";
+import GuidePage from "@/pages/GuidePage";
+import SettingsPage from "@/pages/SettingsPage";
+import LoginPage from "@/pages/LoginPage";
+import DashboardPage from "@/pages/DashboardPage";
+import { useAuth } from "@/contexts/AuthContext";
 
-// Create a client
-const queryClient = new QueryClient();
+function PrivateRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  return user ? children : <Navigate to="/login" />;
+}
 
-const App = () => (
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  return !user ? children : <Navigate to="/" />;
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route
+        path="/login"
+        element={
+          <PublicRoute>
+            <LoginPage />
+          </PublicRoute>
+        }
+      />
+      
+      <Route
+        path="/"
+        element={
+          <PrivateRoute>
+            <BaseLayout>
+              <DashboardPage />
+            </BaseLayout>
+          </PrivateRoute>
+        }
+      />
+
+      <Route
+        path="/builder"
+        element={
+          <PrivateRoute>
+            <BaseLayout>
+              <BuilderPage />
+            </BaseLayout>
+          </PrivateRoute>
+        }
+      />
+
+      <Route
+        path="/prompts"
+        element={
+          <PrivateRoute>
+            <BaseLayout>
+              <PromptsPage />
+            </BaseLayout>
+          </PrivateRoute>
+        }
+      />
+
+      <Route
+        path="/guide"
+        element={
+          <PrivateRoute>
+            <BaseLayout>
+              <GuidePage />
+            </BaseLayout>
+          </PrivateRoute>
+        }
+      />
+
+      <Route
+        path="/settings"
+        element={
+          <PrivateRoute>
+            <BaseLayout>
+              <SettingsPage />
+            </BaseLayout>
+          </PrivateRoute>
+        }
+      />
+    </Routes>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AuthProvider>
+        <AppRoutes />
         <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/guide" element={<GuidePage />} />
-            <Route path="/builder" element={<BuilderPage />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  </StrictMode>
-);
+      </AuthProvider>
+    </Router>
+  );
+}
 
 export default App;

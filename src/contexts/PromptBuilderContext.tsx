@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Agent, FieldConfig, Validation, Rule, Function, PromptData, Field } from '@/types/promptBuilder';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -18,6 +18,7 @@ interface PromptBuilderContextType {
   removeFieldFromFunction: (functionId: string, fieldId: string) => void;
   resetPromptData: () => void;
   generatePrompt: () => string;
+  setInitialPromptContent: (content: string) => void;
 }
 
 const defaultAgent: Agent = {
@@ -61,8 +62,176 @@ const initialState: PromptData = {
 
 const PromptBuilderContext = createContext<PromptBuilderContextType | undefined>(undefined);
 
-export const PromptBuilderProvider = ({ children }: { children: ReactNode }) => {
+interface PromptBuilderProviderProps {
+  children: ReactNode;
+  initialContent?: string;
+}
+
+export const PromptBuilderProvider = ({ children, initialContent }: PromptBuilderProviderProps) => {
   const [promptData, setPromptData] = useState<PromptData>(initialState);
+
+  useEffect(() => {
+    if (initialContent) {
+      setInitialPromptContent(initialContent);
+    }
+  }, [initialContent]);
+
+  const setInitialPromptContent = (content: string) => {
+    if (!content) {
+      console.log("Nenhum conteúdo inicial fornecido");
+      return;
+    }
+    
+    console.log("Conteúdo inicial do prompt:", content);
+    
+    try {
+      console.log("Analisando conteúdo do prompt:", content);
+      
+      // Extrair dados do prompt existente e preencher o estado
+      // Nome do agente
+      const agentNameMatch = content.match(/<Name>(.*?)<\/Name>/);
+      // Descrição do agente
+      const agentDescMatch = content.match(/<Description>(.*?)<\/Description>/);
+      // Idioma
+      const langMatch = content.match(/<Language>(.*?)<\/Language>/);
+      // Estilo de comunicação
+      const commStyleMatch = content.match(/<style>(.*?)<\/style>/);
+      
+      // Extrair regras do guia
+      const guideRules: string[] = [];
+      const guideRuleMatches = content.match(/<Guide>\s*\[\s*([\s\S]*?)\s*\]\s*<\/Guide>/);
+      
+      if (guideRuleMatches && guideRuleMatches[1]) {
+        const rulesText = guideRuleMatches[1];
+        const ruleRegex = /"([^"]*)"/g;
+        let ruleMatch;
+        
+        while ((ruleMatch = ruleRegex.exec(rulesText)) !== null) {
+          if (ruleMatch[1].trim()) {
+            guideRules.push(ruleMatch[1].trim());
+          }
+        }
+      }
+      
+      // Extrair configurações de campo marcadas
+      const fieldConfigsActive: string[] = [];
+      const fieldConfigsMatch = content.match(/<FieldsConfigurator>\s*\[\s*([\s\S]*?)\s*\]\s*<\/FieldsConfigurator>/);
+      
+      if (fieldConfigsMatch && fieldConfigsMatch[1]) {
+        const configsText = fieldConfigsMatch[1];
+        const configRegex = /"([^"]*)"/g;
+        let configMatch;
+        
+        while ((configMatch = configRegex.exec(configsText)) !== null) {
+          if (configMatch[1].trim()) {
+            fieldConfigsActive.push(configMatch[1].trim());
+          }
+        }
+      }
+      
+      // Extrair validações
+      const validations: Validation[] = [];
+      const validationRegex = /<Validation>(.*?)<\/Validation>/g;
+      let validationMatch;
+      
+      while ((validationMatch = validationRegex.exec(content)) !== null) {
+        if (validationMatch[1].trim()) {
+          validations.push({
+            id: uuidv4(),
+            description: validationMatch[1].trim()
+          });
+        }
+      }
+      
+      // Extrair regras
+      const rules: Rule[] = [];
+      const ruleRegex = /<Rule>(.*?)<\/Rule>/g;
+      let ruleMatch;
+      
+      while ((ruleMatch = ruleRegex.exec(content)) !== null) {
+        if (ruleMatch[1].trim()) {
+          rules.push({
+            id: uuidv4(),
+            description: ruleMatch[1].trim()
+          });
+        }
+      }
+      
+      // Extrair funções
+      const functions: Function[] = [];
+      const functionPattern = /<Function>\s*([\s\S]*?)<\/Function>/g;
+      let functionMatch;
+      
+      while ((functionMatch = functionPattern.exec(content)) !== null) {
+        const functionContent = functionMatch[1];
+        
+        const functionNameMatch = functionContent.match(/<Name>(.*?)<\/Name>/);
+        const responseTemplateMatch = functionContent.match(/<ResponseTemplate>(.*?)<\/ResponseTemplate>/);
+        
+        const fields: Field[] = [];
+        const fieldPattern = /<Field>\s*([\s\S]*?)<\/Field>/g;
+        let fieldMatch;
+        
+        while ((fieldMatch = fieldPattern.exec(functionContent)) !== null) {
+          const fieldContent = fieldMatch[1];
+          
+          const fieldNameMatch = fieldContent.match(/<Name>(.*?)<\/Name>/);
+          const fieldPromptMatch = fieldContent.match(/<Prompt>(.*?)<\/Prompt>/);
+          
+          // Extrair validação do campo
+          let fieldValidation = '';
+          const fieldValidationMatch = fieldContent.match(/<Validations>\s*\[\s*([\s\S]*?)\s*\]\s*<\/Validations>/);
+          
+          if (fieldValidationMatch && fieldValidationMatch[1]) {
+            const validationRegex = /"([^"]*)"/;
+            const validationTextMatch = validationRegex.exec(fieldValidationMatch[1]);
+            
+            if (validationTextMatch && validationTextMatch[1]) {
+              fieldValidation = validationTextMatch[1];
+            }
+          }
+          
+          fields.push({
+            id: uuidv4(),
+            name: fieldNameMatch ? fieldNameMatch[1].trim() : '',
+            prompt: fieldPromptMatch ? fieldPromptMatch[1].trim() : '',
+            validation: fieldValidation
+          });
+        }
+        
+        functions.push({
+          id: uuidv4(),
+          name: functionNameMatch ? functionNameMatch[1].trim() : '',
+          responseTemplate: responseTemplateMatch ? responseTemplateMatch[1].trim() : '',
+          fields
+        });
+      }
+      
+      // Atualizar o estado com os dados extraídos
+      setPromptData(prev => ({
+        ...prev,
+        agent: {
+          ...prev.agent,
+          name: agentNameMatch ? agentNameMatch[1].trim() : '',
+          description: agentDescMatch ? agentDescMatch[1].trim() : '',
+          language: langMatch ? langMatch[1].trim() : '',
+          communicationStyle: commStyleMatch ? commStyleMatch[1].trim() : '',
+          guideRules
+        },
+        fieldConfigs: prev.fieldConfigs.map(config => ({
+          ...config,
+          checked: fieldConfigsActive.includes(config.description.trim())
+        })),
+        validations,
+        rules,
+        functions
+      }));
+      
+      console.log("Prompt analisado com sucesso");
+    } catch (error) {
+      console.error("Erro ao analisar o conteúdo do prompt:", error);
+    }
+  };
 
   const updateAgent = (agent: Partial<Agent>) => {
     setPromptData((prev) => ({
@@ -280,7 +449,8 @@ export const PromptBuilderProvider = ({ children }: { children: ReactNode }) => 
         updateFieldInFunction,
         removeFieldFromFunction,
         resetPromptData,
-        generatePrompt
+        generatePrompt,
+        setInitialPromptContent
       }}
     >
       {children}
@@ -290,7 +460,7 @@ export const PromptBuilderProvider = ({ children }: { children: ReactNode }) => 
 
 export const usePromptBuilder = (): PromptBuilderContextType => {
   const context = useContext(PromptBuilderContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('usePromptBuilder must be used within a PromptBuilderProvider');
   }
   return context;
