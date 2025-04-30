@@ -55,17 +55,18 @@ export function Sidebar({ className }: SidebarProps) {
           <div className="flex flex-col items-center mb-6 pt-2">
             <Logo size="lg" className="mb-2" />
           </div>
-          <div className="space-y-1">
+          <div className="space-y-3">
             {menuItems.map((item) => (
               <Link
                 key={item.href}
                 to={item.href}
               >
                 <Button
-                  variant={location.pathname === item.href ? "secondary" : "ghost"}
+                  variant={location.pathname === item.href ? undefined : "ghost"}
                   className={cn(
                     "w-full justify-start",
-                    location.pathname === item.href && "bg-secondary text-secondary-foreground hover:bg-secondary/90"
+                    location.pathname === item.href &&
+                      "h-12 bg-gradient-to-r from-[#61CE70] to-[#58FF0F] hover:from-[#58FF0F] hover:to-[#61CE70] text-white transition-all duration-300 font-semibold text-lg shadow-lg hover:shadow-xl"
                   )}
                 >
                   <item.icon className="mr-2 h-4 w-4" />

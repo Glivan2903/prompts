@@ -37,9 +37,9 @@ export default function LoginPage() {
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-white p-8">
           <div className="w-full max-w-md">
             <Logo size="lg" className="mx-auto mb-12" />
-            <h2 className="text-4xl font-bold mb-6">Gerador de Prompts</h2>
+            <h2 className="text-4xl font-bold mb-6">Painel de Demandas IA</h2>
             <p className="text-xl opacity-90 max-w-sm mx-auto">
-              Gerencie e auxilie prompts para os clientes
+            Seu ponto central para gerenciar tudo o que seus clientes pedem com IA
             </p>
           </div>
         </div>
