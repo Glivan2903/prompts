@@ -16,6 +16,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
+import { Input } from '@/components/ui/input';
 
 interface DashboardMetrics {
   totalPrompts: number;
@@ -41,95 +42,73 @@ export default function DashboardPage() {
   });
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        // Buscar total de prompts
-        const { count: totalPrompts } = await supabase
-          .from("prompts")
-          .select("*", { count: "exact", head: true });
-
-        // Buscar total de usuários
+        setLoading(true);
+        let query = supabase.from('prompts').select('*', { count: 'exact', head: false });
+        if (startDate) query = query.gte('created_at', startDate + 'T00:00:00');
+        if (endDate) query = query.lte('created_at', endDate + 'T23:59:59');
+        if (statusFilter) query = query.eq('status', statusFilter);
+        const { data: promptsData, count: totalPrompts } = await query;
+        // Contagem por status
+        const statusCount: Record<string, number> = {};
+        (promptsData || []).forEach((p) => {
+          statusCount[p.status || 'Pendente'] = (statusCount[p.status || 'Pendente'] || 0) + 1;
+        });
+        setStatusCounts(statusCount);
+        // Total de usuários
         const { count: totalUsers } = await supabase
-          .from("users")
-          .select("*", { count: "exact", head: true });
-
-        // Buscar prompts deste mês
-        const startOfMonth = new Date();
-        startOfMonth.setDate(1);
-        startOfMonth.setHours(0, 0, 0, 0);
-
-        const { count: promptsThisMonth } = await supabase
-          .from("prompts")
-          .select("*", { count: "exact", head: true })
-          .gte("created_at", startOfMonth.toISOString());
-
-        // Buscar prompts por dia (últimos 7 dias)
-        const last7Days = new Date();
-        last7Days.setDate(last7Days.getDate() - 7);
-        const { data: promptsPerDay } = await supabase
-          .from("prompts")
-          .select("created_at")
-          .gte("created_at", last7Days.toISOString());
-
-        // Processar dados para gráfico de linha
-        const dailyPrompts = promptsPerDay?.reduce((acc: any, prompt) => {
-          const date = new Date(prompt.created_at).toLocaleDateString();
-          acc[date] = (acc[date] || 0) + 1;
-          return acc;
-        }, {});
-
-        const promptsPerDayArray = Object.entries(dailyPrompts || {}).map(
-          ([date, count]) => ({
-            date,
-            count: count as number,
-          })
-        );
-
-        // Buscar tipos de prompts mais comuns
-        const { data: promptTypes } = await supabase
-          .from("prompts")
-          .select("client_code")
-          .limit(100);
-
-        const typeCount = promptTypes?.reduce((acc: Record<string, number>, prompt) => {
-          acc[prompt.client_code] = (acc[prompt.client_code] || 0) + 1;
-          return acc;
-        }, {});
-
-        const promptsByTypeArray = Object.entries(typeCount || {}).map(
-          ([type, value]) => ({
-            type,
-            value: value as number,
-          })
-        );
-
-        // Buscar atividade recente
-        const { data: recentActivity } = await supabase
-          .from("prompts")
-          .select("id, title, created_at")
-          .order("created_at", { ascending: false })
-          .limit(5);
-
+          .from('users')
+          .select('*', { count: 'exact', head: true });
+        // Prompts por dia
+        const promptsPerDay: Record<string, number> = {};
+        (promptsData || []).forEach((p) => {
+          const date = new Date(p.created_at).toLocaleDateString();
+          promptsPerDay[date] = (promptsPerDay[date] || 0) + 1;
+        });
+        const promptsPerDayArray = Object.entries(promptsPerDay).map(([date, count]) => ({ date, count }));
+        // Prompts por tipo
+        const typeCount: Record<string, number> = {};
+        (promptsData || []).forEach((p) => {
+          typeCount[p.client_code] = (typeCount[p.client_code] || 0) + 1;
+        });
+        const promptsByTypeArray = Object.entries(typeCount).map(([type, value]) => ({ type, value }));
+        // Atividades recentes detalhadas
+        const recentActivity = (promptsData || [])
+          .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
+          .slice(0, 10)
+          .map((p) => ({
+            id: p.id,
+            title: p.title,
+            created_at: p.created_at,
+            updated_at: p.updated_at,
+            status: p.status,
+            user: p.user_id,
+            action: p.updated_at && p.updated_at !== p.created_at ? 'Editado' : 'Criado',
+          }));
         setMetrics({
           totalPrompts: totalPrompts || 0,
           totalUsers: totalUsers || 0,
-          promptsThisMonth: promptsThisMonth || 0,
+          promptsThisMonth: 0, // pode ser ajustado
           averagePromptsPerUser: totalUsers ? (totalPrompts || 0) / totalUsers : 0,
           promptsPerDay: promptsPerDayArray,
-          promptsByType: promptsByTypeArray || [],
-          recentActivity: recentActivity || [],
+          promptsByType: promptsByTypeArray,
+          recentActivity,
         });
       } catch (error) {
-        console.error("Erro ao buscar métricas:", error);
+        console.error('Erro ao buscar métricas:', error);
       } finally {
         setLoading(false);
       }
     };
-
     fetchMetrics();
-  }, []);
+  }, [startDate, endDate, statusFilter]);
 
   if (loading) {
     return <div>Carregando métricas...</div>;
@@ -138,12 +117,33 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 p-6">
       <h1 className="text-3xl font-bold">Dashboard</h1>
-      
+      {/* Filtros */}
+      <div className="flex flex-wrap gap-4 mb-6 items-end">
+        <div>
+          <label className="block text-sm font-medium mb-1">Data inicial</label>
+          <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Data final</label>
+          <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Status</label>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="border rounded px-2 py-1 text-sm">
+            <option value="">Todos</option>
+            <option value="Pendente">Pendente</option>
+            <option value="Em andamento">Em andamento</option>
+            <option value="Em Teste">Em Teste</option>
+            <option value="Concluido">Concluído</option>
+            <option value="Cancelado">Cancelado</option>
+          </select>
+        </div>
+      </div>
       {/* Cards de Métricas */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Prompts</CardTitle>
+            <CardTitle className="text-sm font-medium">Total de Demandas</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{metrics.totalPrompts}</div>
@@ -159,10 +159,17 @@ export default function DashboardPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Prompts este Mês</CardTitle>
+            <CardTitle className="text-sm font-medium">Demandas por Status</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics.promptsThisMonth}</div>
+            <ul className="text-sm space-y-1">
+              {['Pendente','Em andamento','Em Teste','Concluido','Cancelado'].map(status => (
+                <li key={status} className="flex justify-between">
+                  <span>{status}</span>
+                  <span className="font-bold">{statusCounts[status] || 0}</span>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
         <Card>
@@ -233,10 +240,10 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Atividade Recente */}
+      {/* Atividades Recentes */}
       <Card>
         <CardHeader>
-          <CardTitle>Atividade Recente</CardTitle>
+          <CardTitle>Atividades Recentes</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -245,9 +252,11 @@ export default function DashboardPage() {
                 key={activity.id}
                 className="flex items-center justify-between border-b pb-2"
               >
-                <div className="font-medium">{activity.title}</div>
-                <div className="text-sm text-gray-500">
-                  {new Date(activity.created_at).toLocaleDateString()}
+                <div>
+                  <div className="font-medium">{activity.title}</div>
+                  <div className="text-xs text-gray-500">{activity.action} em {new Date(activity.updated_at || activity.created_at).toLocaleString('pt-BR')}</div>
+                  <div className="text-xs text-gray-500">Status: {activity.status || 'Pendente'}</div>
+                  <div className="text-xs text-gray-500">Usuário: {activity.user || '-'}</div>
                 </div>
               </div>
             ))}

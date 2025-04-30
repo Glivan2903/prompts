@@ -22,12 +22,12 @@ export function Sidebar({ className }: SidebarProps) {
       href: "/",
     },
     {
-      title: "Criar Prompt",
+      title: "Criar Demanda",
       icon: PlusCircle,
       href: "/builder",
     },
     {
-      title: "Meus Prompts",
+      title: "Demandas",
       icon: List,
       href: "/prompts",
     },
